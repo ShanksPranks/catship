@@ -1,399 +1,471 @@
 <!DOCTYPE html>
 <html>
 
+<script src="http://kjur.github.io/jsrsasign/jsrsasign-latest-all-min.js"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.6.4/angular.min.js"></script>
+<script src="catShipChain.js"></script>
+<script src="userWallet.js"></script>
+
+<script>
+    /* -----------------------------------------------------------------------------
+     ** temp globals remove later when data connectors exist
+     ** -------------------------------------------------------------------------- */
+    var userMessage = 'Have a coffee on me scallywag';
+    var userValue = '2.03';
+    var receiverPublicKey = '04f9cc17bde90abb9a366b30a6357d428843790c7ab67987558e3912c6721cd4ad75ec8ae5eebff1c87dd4a56de7ce9b08bf0f3fb7e8d454bb2a0e5104b452e284';
+
+    // global variables fed from the peers
+    var currentCoinReward = '100.000000000';
+    var currentDifficulty = '7';
+</script>
+
+<style>
+    table,
+    th,
+    td {
+        border: 1px solid grey;
+        border-collapse: collapse;
+        padding: 5px;
+        max-width: 400px;
+        table-layout: fixed;
+        word-wrap: break-word;
+    }
+
+    table tr:nth-child(odd) {
+        background-color: #f1f1f1;
+        width: 30px;
+    }
+
+    table tr:nth-child(even) {
+        background-color: #ffffff;
+        width: 30px;
+    }
+</style>
+
 <body>
 
-    <script src="http://kjur.github.io/jsrsasign/jsrsasign-latest-all-min.js"></script>
-    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.6.4/angular.min.js"></script>
-    <script src="catShipChain.js"></script>
-    <script src="userWallet.js"></script>
-
-    <body>
-
-        <div ng-app="myApp" ng-controller="formCtrl">
-            <form novalidate>
-                Private Key:<br>
-                <input type="text" ng-model="user.PrvKey"><br> Public Key:<br>
-                <input type="text" ng-model="user.PubKey"><br> Current Balance:<br>
-                <p>{{master.Balance}}</p>
-                <br><br>
-                <button ng-click="updateWallet()">UPDATE</button>
-            </form>
-            <!--/div>
-       <div ng-app="sendCoin" ng-controller="sendCtrl"-->
-            <form novalidate>
-                Pay to:<br>
-                <input type="text" ng-model="user.ReceieverPubKey">
-                <br> Amount:<br>
-                <input type="text" ng-model="user.Amount">
-                <br> Message:<br>
-                <input type="text" ng-model="user.Message">
-                <br><br>
-                <button ng-click="sendPayment()">SEND PAYMENT</button>
-            </form>
-            <form novalidate>
-                <br><br>
-                <button ng-click="mineCoins()">MINE CATSHIP COINS!</button>
-            </form>
-
+    <div ng-app="myApp" ng-controller="formCtrl">
+        <form novalidate>
+            <h2>WALLET</h2><br> Private Key:<br>
+            <input type="text" ng-model="user.PrvKey"><br> Public Key:<br>
+            <input type="text" ng-model="user.PubKey"><br>
+            <p> Current Balance: {{master.Balance}}</p>
+            <button ng-click="updateWallet()">UPDATE WALLET</button>
+            <br>
+            <br>
+            <h2>MAKE PAYMENT</h2><br> Pay to:<br>
+            <input type="text" ng-model="user.ReceieverPubKey">
+            <br> Amount:<br>
+            <input type="text" ng-model="user.Amount">
+            <br> Message:<br>
+            <input type="text" ng-model="user.Message">
+            <br>
+            <button ng-click="sendPayment()">SEND PAYMENT</button>
+            <br>
+            <br>
+            <h2>MINE COINS</h2><br>
+            <br>
+            <button ng-click="mineCoins()">MINE CATSHIP COINS!</button>
+            <br>
+            <br>
+            <h2>PREVIOUS TRANSACTIONS</h2>
+            <br>
+            <table>
+                <thead fix-head>
+                    <tr>
+                        <th>TRANSACTION ID</th>
+                        <th>SENDER ADDRESS</th>
+                        <th>RECEIVER ADDRESS</th>
+                        <th>VALUE</th>
+                        <th>MESSAGE</th>
+                        <th>SIGNATURE</th>
+                    </tr>
+                </thead>
+                <tr ng-repeat="x in names track by $index">
+                    <td>{{ x.transactionID }}</td>
+                    <td>{{ x.senderAddress }}</td>
+                    <td>{{ x.receiverAddress }}</td>
+                    <td>{{ x.value }}</td>
+                    <td>{{ x.message }}</td>
+                    <td>{{ x.signature }}</td>
+                </tr>
+            </table>
+            <br>
+            <br>
             <p>form = {{user}}</p>
             <p>master = {{master}}</p>
-        </div>
-    </body>
 
-    <script>
-        console.log('********** wallet UI so sexy **********');
-        // ui code for wallet
-        var app = angular.module('myApp', []);
-        app.controller('formCtrl', function($scope) {
-            $scope.master = {
-                PrvKey: userWallet.privateKey,
-                PubKey: userWallet.publicKey,
-                Balance: userWallet.balance
+    </div>
+</body>
+
+<script>
+    /* -----------------------------------------------------------------------------
+     ** wallet ui code
+     ** -------------------------------------------------------------------------- */
+
+    // ui code for wallet
+    var app = angular.module('myApp', []);
+    app.controller('formCtrl', function($scope) {
+        $scope.master = {
+            PrvKey: userWallet.privateKey,
+            PubKey: userWallet.publicKey,
+            Balance: userWallet.balance
+        };
+        $scope.updateWallet = function() {
+            userWallet.publicKey = $scope.user.PubKey;
+            userWallet.privateKey = $scope.user.PrvKey;
+            userWallet.transactionArray = [];
+            userWallet.updateBalance();
+            $scope.user.Balance = userWallet.balance;
+            console.log(userWallet);
+            $scope.master = angular.copy($scope.user);
+        };
+        $scope.sendPayment = function() {
+            var newTrans = new catShipTransaction(userWallet.publicKey, $scope.user.ReceieverPubKey, $scope.user.Message, $scope.user.Amount, userWallet.privateKey, null);
+            console.log('successfully created a trans!');
+            console.log(newTrans);
+            if (newTrans.isValid == true) {
+                testBlock.transactionArray.push(newTrans);
             };
-            $scope.updateWallet = function() {
-                userWallet.publicKey = $scope.user.PubKey;
-                userWallet.privateKey = $scope.user.PrvKey;
-                userWallet.updateBalance();
-                $scope.user.Balance = userWallet.balance;
-                console.log(userWallet);
-                $scope.master = angular.copy($scope.user);
-            };
-            $scope.sendPayment = function() {
-                var newTrans = new catShipTransaction(userWallet.publicKey, $scope.user.ReceieverPubKey, $scope.user.Message, $scope.user.Amount, userWallet.privateKey, null);
-                console.log('successfully created a trans!');
-                console.log(newTrans);
-                if (newTrans.isValid == true) {
-                    testBlock.transactionArray.push(newTrans);
-                };
-            };
-            $scope.mineCoins = function() {
-                console.log('********** mine the block **********');
-                // this is the hash used by the puzzle
-                testBlock.calculateBlockGameHash();
-                // => launches the video game and returns with reward and signature
-                // once mining is successfull close the block
-                testBlock.closeBlock();
-                console.log('updated catshipchain:');
-                console.log(catShipChain);
-            };
-            $scope.reset = function() {
-                $scope.user = angular.copy($scope.master);
-            };
-            $scope.reset();
+
+        };
+        $scope.mineCoins = function() {
+            console.log('********** mine the block **********');
+            // this is the hash used by the puzzle
+            testBlock.calculateBlockGameHash();
+            // => launches the video game and returns with reward and signature
+            window.open("http://www.catship.co.za");
+            // once mining is successfull close the block
+            testBlock.closeBlock();
+            console.log('updated catshipchain:');
+            console.log(catShipChain);
+        };
+        $scope.reset = function() {
+            $scope.user = angular.copy($scope.master);
+        };
+        console.log(userWallet.transactionArray);
+        $scope.names = userWallet.transactionArray;
+        $scope.reset();
+    });
+
+    console.log('********** initializing catshipchain and tx pool **********');
+
+    if (typeof catShipChain === 'undefined') {
+        console.log('did not find a catship block chain, creating an empty one...');
+        var catShipChain = []; // { blockHeight , block }
+    }
+
+    if (typeof transactionPool === 'undefined') {
+        console.log('did not find a transaction pool, creating an empty one...');
+        var transactionPool = []; // { catshipTransaction }
+    }
+
+    console.log('********** initializing the user wallet **********');
+
+    if (typeof userWalletFromFile === 'undefined') {
+        console.log('did not find a user Wallet, initializing a fresh one...');
+        var userWallet = new catShipCoinWallet();
+    } else {
+        var userWallet = new catShipCoinWallet(userWalletFromFile.publicKey, userWalletFromFile.privateKey);
+    }
+
+    console.log('User wallet stringy:');
+    var userWalletString = JSON.stringify(userWallet);
+    console.log(userWalletString);
+
+    console.log('********** creating a genesis block if needed **********');
+    if (catShipChain.length == 0) {
+        console.log('did not find a cat ship block chain, initializing a fresh one...');
+        initializeCatChain();
+    }
+
+    /* -----------------------------------------------------------------------------
+     ** test scripts
+     ** -------------------------------------------------------------------------- */
+
+    console.log('********** adding a new block and a few transactions **********');
+
+    // create a new block
+    var testBlock = new catShipBlock(userWallet.publicKey, currentCoinReward);
+
+    // create a transaction 
+    var testTransaction = new catShipTransaction(userWallet.publicKey, receiverPublicKey, userMessage, 12.00, userWallet.privateKey, null);
+
+    // add transaction to the block
+    testBlock.transactionArray.push(testTransaction);
+
+    // create a transaction 
+    var testTransaction = new catShipTransaction(userWallet.publicKey, receiverPublicKey, 'Have a kitkat!', 10.00, userWallet.privateKey, null);
+
+    // add transaction to the block
+    testBlock.transactionArray.push(testTransaction);
+
+
+
+    var currentBal = getUserBalance(userWallet.publicKey, userWallet.transactionArray);
+
+    var catShipChainString = JSON.stringify(catShipChain);
+    console.log(catShipChain);
+    //console.log('stringy chain:' + catShipChainString);
+
+    /* -----------------------------------------------------------------------------
+     ** temporary functions
+     ** -------------------------------------------------------------------------- */
+
+    // create a genesis block for the cat ship chain 
+    function initializeCatChain() {
+
+        // blocks can only be created by playing a game of catship where the coin reward or score along with the signature and miners address is included
+        var firstBlock = new catShipBlock('04a0ca271b2e123e97001ccf99770d25e23f7b07f736d5f2399ad2ec446d10db1e766d61e3816d84994b99da593a0416c3555bf64a7b676d192b3e78106adfb20c', 100, '3045022100ea072f857217b74ec83cfebc4533f78f3cc17afa2156c104f10eddd73806bdcf022047af181b17c99560355b91d1c7115ce80253517af1beae33e8f0dcbd7ef69e2b');
+        console.log(firstBlock);
+        firstBlock.calculateBlockGameHash();
+        firstBlock.closeBlock();
+    }
+
+    /* -----------------------------------------------------------------------------
+     ** blockchain functions
+     ** -------------------------------------------------------------------------- */
+
+    // block chain methods 
+    function getCurrentBlockHeight() {
+        var maxValue = -1;
+        for (var blockHeight in catShipChain) {
+            if (blockHeight > maxValue) {
+                maxValue = blockHeight;
+            }
+
+        }
+        return parseInt(maxValue);
+    }
+
+    function catShipCoinWallet() {
+        var ec = new KJUR.crypto.ECDSA({
+            'curve': 'secp256r1'
         });
-
-
-        /* 
-                                                CatShipCoin is the first coin that uses POI (Proof Of Intelligence) as the mining algorithm.
-                                                In order to mint coins the miner must play a somehwat buggy, difficult and random video game, the bugginess and randomness are the vital qualities that make it difficult for traditional search based / machine learning AI's to score effectively in the video game.
-
-                                                By making the mining algorithm very resistant to all brute force methodologies and requiring intelligence we ensure that the ability to generate the currency is equally easy for everyday people providing they have access to a web browser and the internet. 
-
-                                                It is particularly hard to play the game on a smart phone although not impossible, I don't know if this is a desired feature or not.
-
-                                                The coin has an additional property that every 1000th block is a "rebase block" where all existing balances in the system are generated as coinbase rewards to those addresses. This ensures that the blockchain stays to a small(ish) size and can fit in local storage on a smart phone. 
-
-                                                Coinbase rewards are adjusted to maintain a cadence of 100 coins per 10 minutes depending on the number of users currently mining and are apportioned based on the scores that each miner is able to accumulate in the 10 minutes. Similarly to bitcoin the reward halves every 2048 blocks.
-
-                                                Not sure what my DDOS startegy is yet, maybe some simple kind of proof of intelligence for each transaction like a CAPCHA or something.
-
-                                                The catship chain is a cryptic and powerful ancient technology that is mystical and mythical in all its facilities.
-                                                
-                                                a block is confirmed as soon as >50% of the netwrok starts mining on top of it and then they 
-                                                periodically submit their best hash / score to the block to get stored in that block for when someone wins the game.
-
-                                                Each persons score is carried over to the next block as a difficulty adjustment.
-                                                */
-        // inputs to the wallet / miner, if they don't exist they get created
-        /*
-        var userPrivateKey = '274387afe92a46c0fb1fe3271892c1d38955a783baf7fd7ffe89a25fff4e1e07'
-        var userPublicKey = '04a0ca271b2e123e97001ccf99770d25e23f7b07f736d5f2399ad2ec446d10db1e766d61e3816d84994b99da593a0416c3555bf64a7b676d192b3e78106adfb20c';
-        */
-        var userMessage = 'Have a coffee on me scallywag';
-        var userValue = '2.03';
-        var receiverPublicKey = '04f9cc17bde90abb9a366b30a6357d428843790c7ab67987558e3912c6721cd4ad75ec8ae5eebff1c87dd4a56de7ce9b08bf0f3fb7e8d454bb2a0e5104b452e284';
-
-        // global variables fed from the peers
-        var currentCoinReward = '100.000000000';
-        var currentDifficulty = '7';
-
-        if (typeof catShipChain === 'undefined') {
-            console.log('did not find a catship block chain, creating an empty one...');
-            var catShipChain = []; // { blockHeight , block }
+        var keypair = ec.generateKeyPairHex();
+        this.publicKey = keypair.ecpubhex; // hexadecimal string of EC public key
+        this.privateKey = keypair.ecprvhex; // hexadecimal string of EC private key (=d)
+        this.balance = getNum(0);
+        this.transactionArray = [];
+        this.updateBalance = function() {
+            this.balance = getUserBalance(this.publicKey, this.transactionArray);
         }
+    }
 
-        function getNum(val) {
-            if (isNaN(val)) {
-                return parseFloat(0);
-            }
-            return parseFloat(val);
+    // overload prototype for existing wallet
+    function catShipCoinWallet(publicKeyIn, privateKeyIn) {
+        this.publicKey = publicKeyIn;
+        this.privateKey = privateKeyIn;
+        this.balance = getUserBalance(this.publicKey);
+        this.transactionArray = [];
+        this.updateBalance = function() {
+            this.balance = getUserBalance(this.publicKey, this.transactionArray);
         }
+    }
 
-        // block chain methods 
-        function getCurrentBlockHeight() {
-            var maxValue = -1;
-            for (var blockHeight in catShipChain) {
-                if (blockHeight > maxValue) {
-                    maxValue = blockHeight;
-                }
+    // this is a prototype of a catship transaction, users will send stuff to each other by playing games and interacting
+    function catShipTransaction(senderAddressIn, receiverAddressIn, messageIn, valueIn, prvhexIn, signatureIn) {
+        this.senderAddress = senderAddressIn; // sender public key
+        this.receiverAddress = receiverAddressIn; // receiver public key
+        this.message = messageIn; // any message they want to write to the blockchain up to 128 chars
+        this.value = valueIn; // amount being transfered
+        this.isValid = false;
+        this.utcTimeStamp = new Date().getTime();
 
-            }
-            return parseInt(maxValue);
-        }
+        /* when we create a transaction we sign the transaction before we get the message digest to ensure the transaction is immutable */
+        var ec = new KJUR.crypto.ECDSA({
+            'curve': 'secp256r1'
+        });
+        this.transactionPlainText = this.senderAddress + this.receiverAddress + this.message + this.value;
 
-        function catShipCoinWallet() {
-            var ec = new KJUR.crypto.ECDSA({
-                'curve': 'secp256r1'
-            });
-            var keypair = ec.generateKeyPairHex();
-            this.publicKey = keypair.ecpubhex; // hexadecimal string of EC public key
-            this.privateKey = keypair.ecprvhex; // hexadecimal string of EC private key (=d)
-            this.balance = getNum(0);
-
-            this.updateBalance = function() {
-                this.balance = getUserBalance(this.publicKey);
-            }
-        }
-
-        // overload prototype for existing wallet
-        function catShipCoinWallet(publicKeyIn, privateKeyIn) {
-            this.publicKey = publicKeyIn;
-            this.privateKey = privateKeyIn;
-            this.balance = getUserBalance(this.publicKey);
-            this.updateBalance = function() {
-                this.balance = getUserBalance(this.publicKey);
-            }
-        }
-
-        // this is a prototype of a catship transaction, users will send stuff to each other by playing games and interacting
-        function catShipTransaction(senderAddressIn, receiverAddressIn, messageIn, valueIn, prvhexIn, signatureIn) {
-            this.senderAddress = senderAddressIn; // sender public key
-            this.receiverAddress = receiverAddressIn; // receiver public key
-            this.message = messageIn; // any message they want to write to the blockchain up to 128 chars
-            this.value = valueIn; // amount being transfered
-            this.isValid = false;
-            this.utcTimeStamp = new Date().getTime();
-            // check the user has the funds
-            //getUserBalance(senderAddressIn);
-
-            /* when we create a transaction we sign the transaction before we get the message digest to ensure the transaction is immutable */
-            var ec = new KJUR.crypto.ECDSA({
-                'curve': 'secp256r1'
-            });
-            this.transactionPlainText = this.senderAddress + this.receiverAddress + this.message + this.value;
-            /*
-            var md = new KJUR.crypto.MessageDigest({
-                alg: "sha384",
-                "prov": "cryptojs"
-            });
-            md.updateString(transactionPlainText);
-            this.transactionHex = md;
-            */
-            // if this is a coin base transaction the signature will be pre-provided 
-            if (signatureIn != null) {
-                this.signature = signatureIn;
-            } else {
-                // sign the plain text of the entire transaction 
-                this.signature = ec.signHex(this.transactionPlainText, prvhexIn);
-            }
-            // now we hash the transaction including the signature to create the transaction ID
-            var transactionPlainTextPlusSig = this.transactionPlainText + this.signature;
-            var md = new KJUR.crypto.MessageDigest({
-                alg: "sha384",
-                "prov": "cryptojs"
-            });
-            md.updateString(transactionPlainTextPlusSig);
-            this.transactionID = md.digest();
-
-            validateTransaction(this);
-
-        }
-
-        function validateTransaction(catShipTransactionIn) {
-            // check balance of sender 
-            var validationCount = 0;
-            var senderBal = getUserBalance(catShipTransactionIn.senderAddress);
-            if (senderBal >= catShipTransactionIn.value) {
-                validationCount += 1;
-            };
-
-            // check the destination address is valid
-            // not sure how to do this
-
-            // check the signature validates against the public key (sender address)
-            var ec = new KJUR.crypto.ECDSA({
-                'curve': 'secp256r1'
-            });
-            var result = ec.verifyHex(catShipTransactionIn.transactionPlainText, catShipTransactionIn.signature, catShipTransactionIn.senderAddress);
-            if (result == true) {
-                validationCount += 1;
-            };
-
-
-            if (validationCount == 2) {
-                catShipTransactionIn.isValid = true;
-            };
-
-        }
-
-        // the prototype for the transaction block
-        function catShipBlock(minerAddressIn, coinRewardIn, signatureIn) {
-
-            this.utcTimeStamp = new Date().getTime();
-
-            // lets send the miner reward trans 
-            var coinbaseTransaction = new catShipTransaction('catShipCoinBase', minerAddressIn, 'freshly minted kitty goodness', coinRewardIn, '', signatureIn);
-
-            this.transactionArray = [];
-            this.transactionArray.push(coinbaseTransaction);
-
-            // the gameScoreArray contains the best scores each miner achieved for this block
-            // here we really test the honesty of miners and can block miners who arent accepting scores
-            this.gameScoreArray = []; // {publicKey - nonce} 
-            var currentBlockHeight = getCurrentBlockHeight();
-            if (currentBlockHeight == null) {
-                this.blockHeight = parseInt(0);
-            } else {
-                this.blockHeight = parseInt(currentBlockHeight) + 1;
-            }
-
-            if (!(catShipChain[currentBlockHeight] == null)) {
-                this.previousBlockID = catShipChain[currentBlockHeight].block.blockID;
-            }
-
-            // the block game hash is an sha384 hash of block height and previous block id so should be the same for all miners, this allows miners to be on an even footing when solving the puzzle
-            // miners will use a nonce + blockGameHash to mine. 
-            this.calculateBlockGameHash = function() {
-                var blockPlainText = this.blockHeight + this.previousBlockID;
-                var md = new KJUR.crypto.MessageDigest({
-                    alg: "sha384",
-                    "prov": "cryptojs"
-                });
-                md.updateString(blockPlainText);
-                this.blockGameHash = md.digest();
-            }
-            // once the block has been solved the entire thing gets hashed and added to the blockchain to make it immutable
-            this.calculateBlockID = function() {
-
-                var transactionArrayString = JSON.stringify(this.transactionArray);
-                var gameScoreArrayString = JSON.stringify(this.gameScoreArray);
-                var blockPlainText = transactionArrayString + gameScoreArrayString + this.blockGameHash;
-                // hash the solved block
-                var md = new KJUR.crypto.MessageDigest({
-                    alg: "sha384",
-                    "prov": "cryptojs"
-                });
-                md.updateString(blockPlainText);
-                this.blockID = md.digest();
-            }
-
-            this.closeBlock = function() {
-
-                this.calculateBlockID();
-
-                var tempBlock = {
-                    "blockHeight": parseInt(this.blockHeight),
-                    "block": this
-                };
-                catShipChain.push(tempBlock);
-
-            }
-
-        }
-
-        function validateCatShipBlock(CatShipBlockIn) {
-            var tempTransactionArray = CatShipBlockIn.transactionArray;
-        }
-
-
-        // create a genesis block for the cat ship chain 
-        function initializeCatChain() {
-
-            // blocks can only be created by playing a game of catship where the coin reward or score along with the signature and miners address is included
-            var firstBlock = new catShipBlock('04a0ca271b2e123e97001ccf99770d25e23f7b07f736d5f2399ad2ec446d10db1e766d61e3816d84994b99da593a0416c3555bf64a7b676d192b3e78106adfb20c', 100, '3045022100ea072f857217b74ec83cfebc4533f78f3cc17afa2156c104f10eddd73806bdcf022047af181b17c99560355b91d1c7115ce80253517af1beae33e8f0dcbd7ef69e2b');
-            console.log(firstBlock);
-            firstBlock.calculateBlockGameHash();
-            firstBlock.closeBlock();
-        }
-
-        function getUserBalance(userAddressIn) {
-            var userBalance = 0;
-
-            // loop through all the blocks filtering out users address transactions
-            for (var blockHeight in catShipChain) {
-                console.log('getting user balance, exploring block height:' + blockHeight);
-                var credits = catShipChain[blockHeight].block.transactionArray.filter((trans) => trans.receiverAddress == userAddressIn);
-
-                var debits = catShipChain[blockHeight].block.transactionArray.filter((trans) => trans.senderAddress == userAddressIn);
-
-                var sum = parseFloat(0);
-                for (var i = 0; i < credits.length; i++) {
-                    sum += getNum(credits[i].value);
-                };
-
-                userBalance += getNum(sum);
-
-                var sum = parseFloat(0);
-                for (var i = 0; i < debits.length; i++) {
-                    sum += getNum(debits[i].value);
-                };
-
-                userBalance -= getNum(sum);
-
-            }
-            //console.log('users balance is: ' + userBalance);
-            return userBalance;
-        }
-
-        console.log('********** initializing the user wallet **********');
-
-        if (typeof userWalletFromFile === 'undefined') {
-            console.log('did not find a user Wallet, initializing a fresh one...');
-            var userWallet = new catShipCoinWallet();
+        // if this is a coin base transaction the signature will be pre-provided 
+        if (signatureIn != null) {
+            this.signature = signatureIn;
         } else {
-            var userWallet = new catShipCoinWallet(userWalletFromFile.publicKey, userWalletFromFile.privateKey);
+            // sign the plain text of the entire transaction 
+            this.signature = ec.signHex(this.transactionPlainText, prvhexIn);
+        }
+        // now we hash the transaction including the signature to create the transaction ID
+        var transactionPlainTextPlusSig = this.transactionPlainText + this.signature;
+        var md = new KJUR.crypto.MessageDigest({
+            alg: "sha384",
+            "prov": "cryptojs"
+        });
+        md.updateString(transactionPlainTextPlusSig);
+        this.transactionID = md.digest();
+
+        validateTransaction(this);
+
+    }
+
+    function validateTransaction(catShipTransactionIn) {
+        // check balance of sender 
+        var validationCount = 0;
+        var senderBal = getUserBalance(catShipTransactionIn.senderAddress, null);
+        if (senderBal >= catShipTransactionIn.value) {
+            validationCount += 1;
+        };
+
+        // check the destination address is valid
+        // not sure how to do this???
+
+        // check the signature validates against the public key (sender address)
+        var ec = new KJUR.crypto.ECDSA({
+            'curve': 'secp256r1'
+        });
+        var result = ec.verifyHex(catShipTransactionIn.transactionPlainText, catShipTransactionIn.signature, catShipTransactionIn.senderAddress);
+        if (result == true) {
+            validationCount += 1;
+        };
+
+
+        if (validationCount == 2) {
+            catShipTransactionIn.isValid = true;
+        };
+
+    }
+
+    // the prototype for the transaction block
+    function catShipBlock(minerAddressIn, coinRewardIn, signatureIn) {
+
+        this.utcTimeStamp = new Date().getTime();
+
+        // lets send the miner reward trans 
+        var coinbaseTransaction = new catShipTransaction('catShipCoinBase', minerAddressIn, 'freshly minted kitty goodness', coinRewardIn, '', signatureIn);
+
+        this.transactionArray = [];
+        this.transactionArray.push(coinbaseTransaction);
+
+        // the gameScoreArray contains the best scores each miner achieved for this block
+        // here we really test the honesty of miners and can block miners who arent accepting scores
+        this.gameScoreArray = []; // {publicKey - nonce} 
+        var currentBlockHeight = getCurrentBlockHeight();
+        if (currentBlockHeight == null) {
+            this.blockHeight = parseInt(0);
+        } else {
+            this.blockHeight = parseInt(currentBlockHeight) + 1;
         }
 
-        console.log('User wallet stringy:');
-        var userWalletString = JSON.stringify(userWallet);
-        console.log(userWalletString);
-
-
-
-        console.log('********** initializing the catShipChain **********');
-        if (catShipChain.length == 0) {
-            console.log('did not find a cat ship block chain, initializing a fresh one...');
-            initializeCatChain();
+        if (!(catShipChain[currentBlockHeight] == null)) {
+            this.previousBlockID = catShipChain[currentBlockHeight].block.blockID;
         }
 
+        // the block game hash is an sha384 hash of block height and previous block id so should be the same for all miners, this allows miners to be on an even footing when solving the puzzle
+        // miners will use a nonce + blockGameHash to mine. 
+        this.calculateBlockGameHash = function() {
+            var blockPlainText = this.blockHeight + this.previousBlockID;
+            var md = new KJUR.crypto.MessageDigest({
+                alg: "sha384",
+                "prov": "cryptojs"
+            });
+            md.updateString(blockPlainText);
+            this.blockGameHash = md.digest();
+        }
+        // once the block has been solved the entire thing gets hashed and added to the blockchain to make it immutable
+        this.calculateBlockID = function() {
 
-        console.log('********** adding a new block and a few transactions **********');
+            var transactionArrayString = JSON.stringify(this.transactionArray);
+            var gameScoreArrayString = JSON.stringify(this.gameScoreArray);
+            var blockPlainText = transactionArrayString + gameScoreArrayString + this.blockGameHash;
+            // hash the solved block
+            var md = new KJUR.crypto.MessageDigest({
+                alg: "sha384",
+                "prov": "cryptojs"
+            });
+            md.updateString(blockPlainText);
+            this.blockID = md.digest();
+        }
 
-        // create a new block
-        var testBlock = new catShipBlock(userWallet.publicKey, currentCoinReward);
+        this.closeBlock = function() {
 
-        // create a transaction 
-        var testTransaction = new catShipTransaction(userWallet.publicKey, receiverPublicKey, userMessage, 12.00, userWallet.privateKey, null);
+            this.calculateBlockID();
 
-        // add transaction to the block
-        testBlock.transactionArray.push(testTransaction);
+            var tempBlock = {
+                "blockHeight": parseInt(this.blockHeight),
+                "block": this
+            };
+            catShipChain.push(tempBlock);
 
-        // create a transaction 
-        var testTransaction = new catShipTransaction(userWallet.publicKey, receiverPublicKey, 'Have a kitkat!', 10.00, userWallet.privateKey, null);
+        }
 
-        // add transaction to the block
-        testBlock.transactionArray.push(testTransaction);
+    }
 
+    function validateCatShipBlock(CatShipBlockIn) {
+        var tempTransactionArray = CatShipBlockIn.transactionArray;
+    }
 
+    function getUserBalance(userAddressIn, transactionArrayIn) {
+        var userBalance = 0;
 
-        var currentBal = getUserBalance(userWallet.publicKey);
+        // loop through all the blocks filtering out users address transactions
+        for (var blockHeight in catShipChain) {
+            //console.log('getting user balance, exploring block height:' + blockHeight);
+            var credits = catShipChain[blockHeight].block.transactionArray.filter((trans) => trans.receiverAddress == userAddressIn);
 
-        var catShipChainString = JSON.stringify(catShipChain);
-        console.log(catShipChain);
-        //console.log('stringy chain:' + catShipChainString);
-    </script>
+            var debits = catShipChain[blockHeight].block.transactionArray.filter((trans) => trans.senderAddress == userAddressIn);
+
+            if (transactionArrayIn != null) {
+                for (var k = 0; k < credits.length; k++) {
+                    transactionArrayIn.push(credits[k]);
+                }
+                for (var k = 0; k < debits.length; k++) {
+                    transactionArrayIn.push(debits[k]);
+                }
+            };
+
+            var sum = parseFloat(0);
+            for (var i = 0; i < credits.length; i++) {
+                sum += getNum(credits[i].value);
+            };
+
+            userBalance += getNum(sum);
+
+            var sum = parseFloat(0);
+            for (var i = 0; i < debits.length; i++) {
+                sum += getNum(debits[i].value);
+            };
+
+            userBalance -= getNum(sum);
+
+        }
+
+        return userBalance;
+    }
+
+    /* -----------------------------------------------------------------------------
+     ** generic functions
+     ** -------------------------------------------------------------------------- */
+
+    function getNum(val) {
+        if (isNaN(val)) {
+            return parseFloat(0);
+        }
+        return parseFloat(val);
+    }
+</script>
 
 </body>
+
+<!--
+CatShipCoin is the first coin that uses POI (Proof Of Intelligence) as the mining algorithm.
+In order to mint coins the miner must play a somehwat buggy, difficult and random video game, the bugginess and randomness are the vital qualities that make it difficult for traditional search based / machine learning AI's to score effectively in the video game.
+
+By making the mining algorithm very resistant to all brute force methodologies and requiring intelligence we ensure that the ability to generate the currency is equally easy for everyday people providing they have access to a web browser and the internet. 
+
+It is particularly hard to play the game on a smart phone although not impossible, I don't know if this is a desired feature or not.
+
+The coin has an additional property that every 1000th block is a "rebase block" where all existing balances in the system are generated as coinbase rewards to those addresses. This ensures that the blockchain stays to a small(ish) size and can fit in local storage on a smart phone. 
+
+Coinbase rewards are adjusted to maintain a cadence of 100 coins per 10 minutes depending on the number of users currently mining and are apportioned based on the scores that each miner is able to accumulate in the 10 minutes. Similarly to bitcoin the reward halves every 2048 blocks.
+
+Not sure what my DDOS startegy is yet, maybe some simple kind of proof of intelligence for each transaction like a CAPCHA or something.
+
+The catship chain is a cryptic and powerful ancient technology that is mystical and mythical in all its facilities.
+                                                
+a block is confirmed as soon as >50% of the netwrok starts mining on top of it and then they 
+periodically submit their best hash / score to the block to get stored in that block for when someone wins the game.
+
+Each persons score is carried over to the next block as a difficulty adjustment.
+-->
 
 </html>
