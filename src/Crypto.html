@@ -8,12 +8,14 @@
 
 <script>
     /* -----------------------------------------------------------------------------
-     ** temp globals remove later when data connectors exist
-     ** -------------------------------------------------------------------------- */
+         ** temp globals remove later when data connectors exist
+         -- add pending transactions 
+         ** -------------------------------------------------------------------------- */
     var userMessage = 'Have a coffee on me scallywag';
     var userValue = '2.03';
     var receiverPublicKey = '04f9cc17bde90abb9a366b30a6357d428843790c7ab67987558e3912c6721cd4ad75ec8ae5eebff1c87dd4a56de7ce9b08bf0f3fb7e8d454bb2a0e5104b452e284';
 
+    var catsShipGameSignature = '3046022100ea98608e0c4c3c22baa66de805fee1a85c10e169edcf45fbd256e72607adb29902210091f498a347796a18ff3a88f23ab2d7e83c4082ade0fb9c57f0ead221cbf6dcc3'; // tricky bit
     // global variables fed from the peers
     var currentCoinReward = '100.000000000';
     var currentDifficulty = '7';
@@ -49,7 +51,7 @@
             <h2>WALLET</h2><br> Private Key:<br>
             <input type="text" ng-model="user.PrvKey"><br> Public Key:<br>
             <input type="text" ng-model="user.PubKey"><br>
-            <p> Current Balance: {{master.Balance}}</p>
+            <p> Current Balance: {{master.Balance}}</p><br>
             <button ng-click="updateWallet()">UPDATE WALLET</button>
             <br>
             <br>
@@ -73,6 +75,8 @@
             <table>
                 <thead fix-head>
                     <tr>
+                        <th>BLOCK</th>
+                        <th>DATE</th>
                         <th>TRANSACTION ID</th>
                         <th>SENDER ADDRESS</th>
                         <th>RECEIVER ADDRESS</th>
@@ -82,6 +86,9 @@
                     </tr>
                 </thead>
                 <tr ng-repeat="x in names track by $index">
+                    <td>{{ x.blockHeight }}</td>
+                    <!--td>{{ x.utcTimeStamp }}</td-->
+                    <td>{{x.utcTimeStamp | date:'yyyy-MM-dd HH:mm:ss Z'}}</td>
                     <td>{{ x.transactionID }}</td>
                     <td>{{ x.senderAddress }}</td>
                     <td>{{ x.receiverAddress }}</td>
@@ -103,7 +110,6 @@
      ** wallet ui code
      ** -------------------------------------------------------------------------- */
 
-    // ui code for wallet
     var app = angular.module('myApp', []);
     app.controller('formCtrl', function($scope) {
         $scope.master = {
@@ -117,36 +123,46 @@
             userWallet.transactionArray = [];
             userWallet.updateBalance();
             $scope.user.Balance = userWallet.balance;
-            console.log(userWallet);
             $scope.master = angular.copy($scope.user);
+            $scope.names = userWallet.transactionArray;
         };
         $scope.sendPayment = function() {
             var newTrans = new catShipTransaction(userWallet.publicKey, $scope.user.ReceieverPubKey, $scope.user.Message, $scope.user.Amount, userWallet.privateKey, null);
-            console.log('successfully created a trans!');
-            console.log(newTrans);
-            if (newTrans.isValid == true) {
-                testBlock.transactionArray.push(newTrans);
-            };
+            //console.log('Transaction sent!');
+            //console.log('updated transaction pool:');
+            //console.log(transactionPool);
+            //var transactionPoolString = JSON.stringify(transactionPool);
 
+            $scope.updateWallet();
         };
         $scope.mineCoins = function() {
             console.log('********** mine the block **********');
-            // this is the hash used by the puzzle
-            testBlock.calculateBlockGameHash();
+
             // => launches the video game and returns with reward and signature
             window.open("http://www.catship.co.za");
-            // once mining is successfull close the block
-            testBlock.closeBlock();
-            console.log('updated catshipchain:');
-            console.log(catShipChain);
+            // now we can successfully mine a block
+            var newBlock = new catShipBlock(userWallet.publicKey, currentCoinReward, catsShipGameSignature);
+
+            //$scope.user.Balance = userWallet.balance;
+            //$scope.names = userWallet.transactionArray;
+            $scope.updateWallet();
+
+            //console.log('updated catshipchain:');
+            //console.log(catShipChain);
+            //var catShipChainString = JSON.stringify(catShipChain);
+            //console.log('stringy chain:' + catShipChainString);
         };
         $scope.reset = function() {
             $scope.user = angular.copy($scope.master);
         };
-        console.log(userWallet.transactionArray);
-        $scope.names = userWallet.transactionArray;
         $scope.reset();
+        $scope.updateWallet();
+
     });
+
+    /* -----------------------------------------------------------------------------
+     ** load data from feeds 
+     ** -------------------------------------------------------------------------- */
 
     console.log('********** initializing catshipchain and tx pool **********');
 
@@ -157,7 +173,7 @@
 
     if (typeof transactionPool === 'undefined') {
         console.log('did not find a transaction pool, creating an empty one...');
-        var transactionPool = []; // { catshipTransaction }
+        var transactionPool = {}; // { TransactionID : {Transaction} } // dictionary
     }
 
     console.log('********** initializing the user wallet **********');
@@ -182,32 +198,15 @@
     /* -----------------------------------------------------------------------------
      ** test scripts
      ** -------------------------------------------------------------------------- */
+    /*
+        console.log('********** adding a few test transactions **********');
 
-    console.log('********** adding a new block and a few transactions **********');
+        // create a transaction 
+        var testTransaction = new catShipTransaction(userWallet.publicKey, receiverPublicKey, userMessage, 12.00, userWallet.privateKey, null);
 
-    // create a new block
-    var testBlock = new catShipBlock(userWallet.publicKey, currentCoinReward);
-
-    // create a transaction 
-    var testTransaction = new catShipTransaction(userWallet.publicKey, receiverPublicKey, userMessage, 12.00, userWallet.privateKey, null);
-
-    // add transaction to the block
-    testBlock.transactionArray.push(testTransaction);
-
-    // create a transaction 
-    var testTransaction = new catShipTransaction(userWallet.publicKey, receiverPublicKey, 'Have a kitkat!', 10.00, userWallet.privateKey, null);
-
-    // add transaction to the block
-    testBlock.transactionArray.push(testTransaction);
-
-
-
-    var currentBal = getUserBalance(userWallet.publicKey, userWallet.transactionArray);
-
-    var catShipChainString = JSON.stringify(catShipChain);
-    console.log(catShipChain);
-    //console.log('stringy chain:' + catShipChainString);
-
+        // create another transaction (will be in the mem pool) 
+        var testTransaction = new catShipTransaction(userWallet.publicKey, receiverPublicKey, 'Have a kitkat!', 10.00, userWallet.privateKey, null);
+    */
     /* -----------------------------------------------------------------------------
      ** temporary functions
      ** -------------------------------------------------------------------------- */
@@ -256,11 +255,11 @@
     function catShipCoinWallet(publicKeyIn, privateKeyIn) {
         this.publicKey = publicKeyIn;
         this.privateKey = privateKeyIn;
-        this.balance = getUserBalance(this.publicKey);
         this.transactionArray = [];
         this.updateBalance = function() {
             this.balance = getUserBalance(this.publicKey, this.transactionArray);
         }
+        this.balance = getUserBalance(this.publicKey);
     }
 
     // this is a prototype of a catship transaction, users will send stuff to each other by playing games and interacting
@@ -295,6 +294,10 @@
         this.transactionID = md.digest();
 
         validateTransaction(this);
+
+        if (this.isValid == true) {
+            transactionPool[this.transactionID] = this; // will replace a transaction if one already exists
+        }
 
     }
 
@@ -334,6 +337,8 @@
         var coinbaseTransaction = new catShipTransaction('catShipCoinBase', minerAddressIn, 'freshly minted kitty goodness', coinRewardIn, '', signatureIn);
 
         this.transactionArray = [];
+
+        // add the coin base reward
         this.transactionArray.push(coinbaseTransaction);
 
         // the gameScoreArray contains the best scores each miner achieved for this block
@@ -350,6 +355,16 @@
             this.previousBlockID = catShipChain[currentBlockHeight].block.blockID;
         }
 
+        // add all the transactions currently in the pool
+        for (var property in transactionPool) {
+            if (transactionPool.hasOwnProperty(property)) {
+                // needs to be atomic!!! get lock,  add, delete from mempool, release lock
+                this.transactionArray.push(transactionPool[property]);
+                delete transactionPool[property];
+            }
+        }
+
+
         // the block game hash is an sha384 hash of block height and previous block id so should be the same for all miners, this allows miners to be on an even footing when solving the puzzle
         // miners will use a nonce + blockGameHash to mine. 
         this.calculateBlockGameHash = function() {
@@ -361,6 +376,10 @@
             md.updateString(blockPlainText);
             this.blockGameHash = md.digest();
         }
+
+        // this is the hash used by the puzzle
+        this.calculateBlockGameHash(); // not sure if I need this
+
         // once the block has been solved the entire thing gets hashed and added to the blockchain to make it immutable
         this.calculateBlockID = function() {
 
@@ -388,6 +407,9 @@
 
         }
 
+        // once mining is successfull close the block
+        this.closeBlock();
+
     }
 
     function validateCatShipBlock(CatShipBlockIn) {
@@ -395,6 +417,8 @@
     }
 
     function getUserBalance(userAddressIn, transactionArrayIn) {
+        console.log('getting user balance..');
+
         var userBalance = 0;
 
         // loop through all the blocks filtering out users address transactions
