@@ -19,13 +19,71 @@
                 <br><br>
                 <button ng-click="updateWallet()">UPDATE</button>
             </form>
+            <!--/div>
+       <div ng-app="sendCoin" ng-controller="sendCtrl"-->
+            <form novalidate>
+                Pay to:<br>
+                <input type="text" ng-model="user.ReceieverPubKey">
+                <br> Amount:<br>
+                <input type="text" ng-model="user.Amount">
+                <br> Message:<br>
+                <input type="text" ng-model="user.Message">
+                <br><br>
+                <button ng-click="sendPayment()">SEND PAYMENT</button>
+            </form>
+            <form novalidate>
+                <br><br>
+                <button ng-click="mineCoins()">MINE CATSHIP COINS!</button>
+            </form>
+
             <p>form = {{user}}</p>
             <p>master = {{master}}</p>
         </div>
-
     </body>
 
     <script>
+        console.log('********** wallet UI so sexy **********');
+        // ui code for wallet
+        var app = angular.module('myApp', []);
+        app.controller('formCtrl', function($scope) {
+            $scope.master = {
+                PrvKey: userWallet.privateKey,
+                PubKey: userWallet.publicKey,
+                Balance: userWallet.balance
+            };
+            $scope.updateWallet = function() {
+                userWallet.publicKey = $scope.user.PubKey;
+                userWallet.privateKey = $scope.user.PrvKey;
+                userWallet.updateBalance();
+                $scope.user.Balance = userWallet.balance;
+                console.log(userWallet);
+                $scope.master = angular.copy($scope.user);
+            };
+            $scope.sendPayment = function() {
+                var newTrans = new catShipTransaction(userWallet.publicKey, $scope.user.ReceieverPubKey, $scope.user.Message, $scope.user.Amount, userWallet.privateKey, null);
+                console.log('successfully created a trans!');
+                console.log(newTrans);
+                if (newTrans.isValid == true) {
+                    testBlock.transactionArray.push(newTrans);
+                };
+            };
+            $scope.mineCoins = function() {
+                console.log('********** mine the block **********');
+                // this is the hash used by the puzzle
+                testBlock.calculateBlockGameHash();
+                // => launches the video game and returns with reward and signature
+                // once mining is successfull close the block
+                testBlock.closeBlock();
+                console.log('updated catshipchain:');
+                console.log(catShipChain);
+            };
+            $scope.reset = function() {
+                $scope.user = angular.copy($scope.master);
+            };
+            $scope.reset();
+        });
+
+
         /* 
                                                 CatShipCoin is the first coin that uses POI (Proof Of Intelligence) as the mining algorithm.
                                                 In order to mint coins the miner must play a somehwat buggy, difficult and random video game, the bugginess and randomness are the vital qualities that make it difficult for traditional search based / machine learning AI's to score effectively in the video game.
@@ -37,6 +95,8 @@
                                                 The coin has an additional property that every 1000th block is a "rebase block" where all existing balances in the system are generated as coinbase rewards to those addresses. This ensures that the blockchain stays to a small(ish) size and can fit in local storage on a smart phone. 
 
                                                 Coinbase rewards are adjusted to maintain a cadence of 100 coins per 10 minutes depending on the number of users currently mining and are apportioned based on the scores that each miner is able to accumulate in the 10 minutes. Similarly to bitcoin the reward halves every 2048 blocks.
+
+                                                Not sure what my DDOS startegy is yet, maybe some simple kind of proof of intelligence for each transaction like a CAPCHA or something.
 
                                                 The catship chain is a cryptic and powerful ancient technology that is mystical and mythical in all its facilities.
                                                 
@@ -262,7 +322,7 @@
 
             // loop through all the blocks filtering out users address transactions
             for (var blockHeight in catShipChain) {
-
+                console.log('getting user balance, exploring block height:' + blockHeight);
                 var credits = catShipChain[blockHeight].block.transactionArray.filter((trans) => trans.receiverAddress == userAddressIn);
 
                 var debits = catShipChain[blockHeight].block.transactionArray.filter((trans) => trans.senderAddress == userAddressIn);
@@ -299,28 +359,6 @@
         var userWalletString = JSON.stringify(userWallet);
         console.log(userWalletString);
 
-        console.log('********** wallet UI so sexy **********');
-        // ui code for wallet
-        var app = angular.module('myApp', []);
-        app.controller('formCtrl', function($scope) {
-            $scope.master = {
-                PrvKey: userWallet.privateKey,
-                PubKey: userWallet.publicKey,
-                Balance: userWallet.balance
-            };
-            $scope.updateWallet = function() {
-                userWallet.publicKey = $scope.user.PubKey;
-                userWallet.privateKey = $scope.user.PrvKey;
-                userWallet.updateBalance();
-                $scope.user.Balance = userWallet.balance;
-                console.log(userWallet);
-                $scope.master = angular.copy($scope.user);
-            };
-            $scope.reset = function() {
-                $scope.user = angular.copy($scope.master);
-            };
-            $scope.reset();
-        });
 
 
         console.log('********** initializing the catShipChain **********');
@@ -333,7 +371,7 @@
         console.log('********** adding a new block and a few transactions **********');
 
         // create a new block
-        var testBlock = new catShipBlock(userWallet.publicKey);
+        var testBlock = new catShipBlock(userWallet.publicKey, currentCoinReward);
 
         // create a transaction 
         var testTransaction = new catShipTransaction(userWallet.publicKey, receiverPublicKey, userMessage, 12.00, userWallet.privateKey, null);
@@ -342,20 +380,12 @@
         testBlock.transactionArray.push(testTransaction);
 
         // create a transaction 
-        var testTransaction = new catShipTransaction(userWallet.publicKey, receiverPublicKey, 'Have a kitkat!', 510.00, userWallet.privateKey, null);
+        var testTransaction = new catShipTransaction(userWallet.publicKey, receiverPublicKey, 'Have a kitkat!', 10.00, userWallet.privateKey, null);
 
         // add transaction to the block
         testBlock.transactionArray.push(testTransaction);
 
-        console.log('********** mine the block **********');
 
-        // this is the hash used by the puzzle
-        testBlock.calculateBlockGameHash();
-
-        // => mining code goes here
-
-        // once mining is successfull close the block
-        testBlock.closeBlock();
 
         var currentBal = getUserBalance(userWallet.publicKey);
 
